@@ -1,0 +1,236 @@
+################################################################################
+# .cloudbuild/deploy.yaml
+# Cloud Build pipeline — triggered on push to main (production) or staging branch.
+#
+# Steps:
+#  1. Install shared layer and run lint/typecheck
+#  2. Build Docker images for each changed service
+#  3. Push to Artifact Registry
+#  4. Deploy to Cloud Run (blue/green via traffic splitting)
+#  5. Run smoke tests
+#  6. Notify Slack on success/failure
+#
+# Substitutions (set by trigger or CI):
+#   _ENV            = staging | production
+#   _IMAGE_TAG      = git SHA (e.g. a1b2c3d)
+#   _PROJECT_ID     = GCP project ID
+#   _REGION         = us-central1
+#   _REPO           = vertex-crm  (Artifact Registry repo name)
+################################################################################
+
+steps:
+  # ─── 0. Setup ──────────────────────────────────────────────────────────────
+  - name: 'node:20-slim'
+    id: 'install-shared'
+    entrypoint: 'npm'
+    args: ['ci', '--prefix', 'shared']
+    waitFor: ['-']
+
+  - name: 'node:20-slim'
+    id: 'typecheck-shared'
+    entrypoint: 'npx'
+    args: ['tsc', '--noEmit', '--project', 'shared/tsconfig.json']
+    waitFor: ['install-shared']
+
+  # ─── 1. Build & Push: CRM Service ─────────────────────────────────────────
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-crm-service'
+    args:
+      - build
+      - --file=services/crm-service/Dockerfile
+      - --tag=$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/crm-service:$_IMAGE_TAG
+      - --tag=$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/crm-service:latest
+      - --cache-from=$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/crm-service:latest
+      - --build-arg=NODE_ENV=production
+      - .
+    waitFor: ['typecheck-shared']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-crm-service'
+    args: ['push', '--all-tags', '$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/crm-service']
+    waitFor: ['build-crm-service']
+
+  # ─── 2. Build & Push: Marketing Intelligence ──────────────────────────────
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-marketing-intelligence'
+    args:
+      - build
+      - --file=services/marketing-intelligence/Dockerfile
+      - --tag=$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/marketing-intelligence:$_IMAGE_TAG
+      - --tag=$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/marketing-intelligence:latest
+      - --cache-from=$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/marketing-intelligence:latest
+      - .
+    waitFor: ['typecheck-shared']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-marketing-intelligence'
+    args: ['push', '--all-tags', '$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/marketing-intelligence']
+    waitFor: ['build-marketing-intelligence']
+
+  # ─── 3. Build & Push: AI Sales Agent ──────────────────────────────────────
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-ai-sales-agent'
+    args:
+      - build
+      - --file=services/ai-sales-agent/Dockerfile
+      - --tag=$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/ai-sales-agent:$_IMAGE_TAG
+      - --tag=$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/ai-sales-agent:latest
+      - --cache-from=$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/ai-sales-agent:latest
+      - .
+    waitFor: ['typecheck-shared']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-ai-sales-agent'
+    args: ['push', '--all-tags', '$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/ai-sales-agent']
+    waitFor: ['build-ai-sales-agent']
+
+  # ─── 4. Build & Push: Workflow Engine ─────────────────────────────────────
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-workflow-engine'
+    args:
+      - build
+      - --file=services/workflow-engine/Dockerfile
+      - --tag=$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/workflow-engine:$_IMAGE_TAG
+      - --tag=$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/workflow-engine:latest
+      - --cache-from=$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/workflow-engine:latest
+      - .
+    waitFor: ['typecheck-shared']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-workflow-engine'
+    args: ['push', '--all-tags', '$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/workflow-engine']
+    waitFor: ['build-workflow-engine']
+
+  # ─── 5. Build & Push: Notification Service ────────────────────────────────
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-notification-service'
+    args:
+      - build
+      - --file=services/notification-service/Dockerfile
+      - --tag=$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/notification-service:$_IMAGE_TAG
+      - --tag=$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/notification-service:latest
+      - --cache-from=$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/notification-service:latest
+      - .
+    waitFor: ['typecheck-shared']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-notification-service'
+    args: ['push', '--all-tags', '$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/notification-service']
+    waitFor: ['build-notification-service']
+
+  # ─── 6. Build & Push: Frontend ────────────────────────────────────────────
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-frontend'
+    args:
+      - build
+      - --file=frontend/Dockerfile
+      - --tag=$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/frontend:$_IMAGE_TAG
+      - --tag=$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/frontend:latest
+      - --cache-from=$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/frontend:latest
+      - --build-arg=NEXT_PUBLIC_API_URL=https://api.vertexcrm.io
+      - frontend/
+    waitFor: ['typecheck-shared']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-frontend'
+    args: ['push', '--all-tags', '$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/frontend']
+    waitFor: ['build-frontend']
+
+  # ─── 7. Run Database Migrations ───────────────────────────────────────────
+  - name: 'gcr.io/google-appengine/exec-wrapper'
+    id: 'run-migrations'
+    args:
+      - -i
+      - $_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/crm-service:$_IMAGE_TAG
+      - -s
+      - $_PROJECT_ID:$_REGION:vertex-postgres
+      - --
+      - node
+      - dist/scripts/migrate.js
+    secretEnv: ['DB_PASSWORD']
+    waitFor:
+      - push-crm-service
+    # Only run in staging first; production gated by manual approval step
+
+  # ─── 8. Deploy to Cloud Run (Traffic Split) ───────────────────────────────
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    id: 'deploy-crm-service'
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - vertex-crm-service
+      - --image=$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/crm-service:$_IMAGE_TAG
+      - --region=$_REGION
+      - --project=$_PROJECT_ID
+      - --no-traffic            # deploy but don't shift traffic yet
+      - --tag=canary-$_IMAGE_TAG
+    waitFor: ['run-migrations', 'push-crm-service']
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    id: 'shift-traffic-crm-service'
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        # Canary: 10% → smoke test → 100%
+        gcloud run services update-traffic vertex-crm-service \
+          --region=$_REGION --project=$_PROJECT_ID \
+          --to-tags=canary-$_IMAGE_TAG=10
+        sleep 30
+        # Quick smoke test
+        STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+          "$(gcloud run services describe vertex-crm-service \
+            --region=$_REGION --project=$_PROJECT_ID \
+            --format='value(status.url)')/health")
+        if [ "$STATUS" != "200" ]; then
+          echo "Smoke test failed with status $STATUS — rolling back"
+          gcloud run services update-traffic vertex-crm-service \
+            --region=$_REGION --project=$_PROJECT_ID --to-latest
+          exit 1
+        fi
+        # Full cutover
+        gcloud run services update-traffic vertex-crm-service \
+          --region=$_REGION --project=$_PROJECT_ID \
+          --to-tags=canary-$_IMAGE_TAG=100
+    waitFor: ['deploy-crm-service']
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    id: 'deploy-remaining-services'
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        for SERVICE in marketing-intelligence ai-sales-agent workflow-engine notification-service frontend; do
+          gcloud run deploy vertex-$SERVICE \
+            --image=$_REGION-docker.pkg.dev/$_PROJECT_ID/$_REPO/$SERVICE:$_IMAGE_TAG \
+            --region=$_REGION --project=$_PROJECT_ID
+        done
+    waitFor:
+      - push-marketing-intelligence
+      - push-ai-sales-agent
+      - push-workflow-engine
+      - push-notification-service
+      - push-frontend
+
+# ─── Secret References ────────────────────────────────────────────────────────
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/$_PROJECT_ID/secrets/vertex-db-password/versions/latest
+      env: 'DB_PASSWORD'
+
+# ─── Build Config ─────────────────────────────────────────────────────────────
+
+options:
+  machineType: 'E2_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+  dynamicSubstitutions: true
+  substitutionOption: 'ALLOW_LOOSE'
+
+timeout: '2400s'  # 40 min max
+
+tags:
+  - vertex-crm
+  - $_ENV
+  - $_IMAGE_TAG

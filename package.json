@@ -1,0 +1,16 @@
+{
+  "name": "vertex-crm",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "shared",
+    "services/*",
+    "frontend"
+  ],
+  "scripts": {
+    "build:shared": "cd shared && npm run build",
+    "build:all": "npm run build:shared && npm run build --workspaces --if-present",
+    "lint": "eslint '**/*.{ts,tsx}' --max-warnings 0",
+    "test": "vitest run"
+  }
+}
