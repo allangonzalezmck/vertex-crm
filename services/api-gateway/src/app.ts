@@ -71,9 +71,9 @@ const PUBLIC_ROUTES = new Set([
   '/ready',
   '/api/auth/google/callback',
   '/api/billing/webhooks/paddle',
-  '/api/agent/webhook/whatsapp',
-  '/api/agent/webhook/messenger',
-  '/api/agent/webhook/cal',
+  '/api/agent/webhooks/whatsapp',
+  '/api/agent/webhooks/facebook',
+  '/api/agent/webhooks/cal',
 ]);
 
 // ── Fastify ──────────────────────────────────────────────────────────────────
@@ -91,7 +91,13 @@ app.addHook('preHandler', async (req: FastifyRequest, reply: FastifyReply) => {
   (req as any).traceId = traceId;
   reply.header('x-trace-id', traceId);
 
-  if (PUBLIC_ROUTES.has(req.url.split('?')[0])) return;
+  const path = req.url.split('?')[0];
+  if (PUBLIC_ROUTES.has(path)) return;
+  // Webhook endpoints include tenant suffixes (e.g. /api/agent/webhooks/whatsapp/{tenantId})
+  // — prefix-match those instead of exact-matching (VR-13 fix).
+  for (const pub of PUBLIC_ROUTES) {
+    if (pub.includes('/webhook') && path.startsWith(pub)) return;
+  }
 
   const auth = req.headers.authorization;
   if (!auth?.startsWith('Bearer ')) {
@@ -152,38 +158,44 @@ async function registerProxies(): Promise<void> {
 // CRM Service
 await app.register(fastifyHttpProxy, {
   upstream: UPSTREAM.crm,
+  prefix: '/api/conversations',
+  rewritePrefix: '/api/v1/conversations',
+  httpMethods: ['GET', 'POST'],
+});
+await app.register(fastifyHttpProxy, {
+  upstream: UPSTREAM.crm,
   prefix: '/api/leads',
-  rewritePrefix: '/leads',
+  rewritePrefix: '/api/v1/leads',
   httpMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
 });
 await app.register(fastifyHttpProxy, {
   upstream: UPSTREAM.crm,
   prefix: '/api/contacts',
-  rewritePrefix: '/contacts',
+  rewritePrefix: '/api/v1/contacts',
   httpMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
 });
 await app.register(fastifyHttpProxy, {
   upstream: UPSTREAM.crm,
   prefix: '/api/deals',
-  rewritePrefix: '/deals',
+  rewritePrefix: '/api/v1/deals',
   httpMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
 });
 await app.register(fastifyHttpProxy, {
   upstream: UPSTREAM.crm,
   prefix: '/api/accounts',
-  rewritePrefix: '/accounts',
+  rewritePrefix: '/api/v1/accounts',
   httpMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
 });
 await app.register(fastifyHttpProxy, {
   upstream: UPSTREAM.crm,
   prefix: '/api/activities',
-  rewritePrefix: '/activities',
+  rewritePrefix: '/api/v1/activities',
   httpMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
 });
 await app.register(fastifyHttpProxy, {
   upstream: UPSTREAM.crm,
   prefix: '/api/pipelines',
-  rewritePrefix: '/pipelines',
+  rewritePrefix: '/api/v1/pipelines',
   httpMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
 });
 

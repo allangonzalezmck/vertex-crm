@@ -40,6 +40,11 @@ export const WhatsAppWebhookSchema = z.object({
           timestamp: z.string(),
           type: z.enum(['text', 'image', 'audio', 'document', 'video', 'interactive', 'button']),
           text: z.object({ body: z.string() }).optional(),
+          // GAP-02: media payloads (Meta hosts binaries only ~30 days)
+          image: z.object({ id: z.string(), mime_type: z.string().optional(), caption: z.string().optional() }).optional(),
+          audio: z.object({ id: z.string(), mime_type: z.string().optional() }).optional(),
+          video: z.object({ id: z.string(), mime_type: z.string().optional(), caption: z.string().optional() }).optional(),
+          document: z.object({ id: z.string(), mime_type: z.string().optional(), caption: z.string().optional(), filename: z.string().optional() }).optional(),
           interactive: z.object({
             type: z.string(),
             button_reply: z.object({ id: z.string(), title: z.string() }).optional(),
@@ -59,6 +64,13 @@ export const WhatsAppWebhookSchema = z.object({
 });
 
 export type WhatsAppWebhook = z.infer<typeof WhatsAppWebhookSchema>;
+
+import type { InboundMedia } from './whatsapp-media-archiver.js';
+
+/** AgentMessage extended with optional media extracted from the webhook. */
+export type AgentMessageWithMedia = import('../../../../shared/src/types/index.js').AgentMessage & {
+  media?: InboundMedia;
+};
 
 export interface WhatsAppAdapterConfig {
   accessToken: string;
@@ -87,7 +99,7 @@ export class WhatsAppAdapter {
     tenantId: string,
     agentConfig: TenantAgentConfig
   ): AgentMessage[] {
-    const messages: AgentMessage[] = [];
+    const messages: AgentMessageWithMedia[] = [];
 
     for (const entry of payload.entry) {
       for (const change of entry.changes) {
@@ -98,8 +110,9 @@ export class WhatsAppAdapter {
         const phoneNumberId = change.value.metadata.phone_number_id;
 
         for (const msg of incoming) {
-          // Only process text-like messages
+          // Text, interactive, and (GAP-02) media messages
           let content: string | null = null;
+          let media: InboundMedia | undefined;
 
           if (msg.type === 'text' && msg.text) {
             content = msg.text.body;
@@ -109,6 +122,19 @@ export class WhatsAppAdapter {
               msg.interactive.button_reply?.title ??
               msg.interactive.list_reply?.title ??
               null;
+          } else if (msg.type === 'image' && msg.image) {
+            media = { id: msg.image.id, kind: 'image', mimeType: msg.image.mime_type, caption: msg.image.caption };
+            content = msg.image.caption ?? '[image]';
+          } else if (msg.type === 'audio' && msg.audio) {
+            media = { id: msg.audio.id, kind: 'audio', mimeType: msg.audio.mime_type };
+            content = '[voice message]';
+          } else if (msg.type === 'video' && msg.video) {
+            media = { id: msg.video.id, kind: 'video', mimeType: msg.video.mime_type, caption: msg.video.caption };
+            content = msg.video.caption ?? '[video]';
+          } else if (msg.type === 'document' && msg.document) {
+            media = { id: msg.document.id, kind: 'document', mimeType: msg.document.mime_type,
+                      caption: msg.document.caption, filename: msg.document.filename };
+            content = msg.document.filename ?? '[document]';
           }
 
           if (!content) {
@@ -127,6 +153,7 @@ export class WhatsAppAdapter {
             conversationId,
             direction: 'inbound',
             content,
+            media,
             channel: 'whatsapp',
             externalUserId: msg.from,
             timestamp: new Date(parseInt(msg.timestamp) * 1000).toISOString(),

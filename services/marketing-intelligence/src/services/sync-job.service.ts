@@ -16,6 +16,12 @@ import type { TenantId } from '../../../../shared/src/types/index.js';
 import type { Logger } from '../../../../shared/src/utils/logger.js';
 import type { BigQueryIngestionService } from './bigquery.service.js';
 import { MetaConnector, type MetaConnectorConfig } from '../connectors/meta.connector.js';
+import { MetaAuthError, MetaTokenManager } from '../connectors/meta-token-manager.js';
+import { Pool } from 'pg';
+
+const syncTokenManager = new MetaTokenManager(
+  new Pool({ connectionString: process.env['DATABASE_URL'] })
+);
 import { TikTokConnector, type TikTokConnectorConfig } from '../connectors/tiktok.connector.js';
 import { GoogleAdsConnector, type GoogleAdsConnectorConfig } from '../connectors/google-ads.connector.js';
 
@@ -293,6 +299,10 @@ export class SyncJobService {
 
       timer({ jobId, platform: request.platform, rowsIngested: result.rowsIngested, status: finalStatus });
     } catch (err) {
+      // GAP-01: dead Meta credentials are terminal — mark connector, alert tenant, don't retry
+      if (err instanceof MetaAuthError) {
+        await syncTokenManager.markNeedsReauth(request.tenantId, err.message).catch(() => {});
+      }
       const message = err instanceof Error ? err.message : String(err);
       await this.updateJob(jobId, {
         status: 'failed',

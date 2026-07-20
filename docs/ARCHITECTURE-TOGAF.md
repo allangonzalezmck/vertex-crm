@@ -1,6 +1,6 @@
 # Vertex CRM — Enterprise Architecture Document (TOGAF 10)
 
-**Document ID:** VTX-EA-001 · **Version:** 1.0 · **Classification:** Internal
+**Document ID:** VTX-EA-001 · **Version:** 1.1 (platform v1.0.1) · **Classification:** Internal
 **Architecture Framework:** TOGAF 10 Architecture Development Method (ADM)
 **Product:** Vertex CRM — Multi-tenant B2B SaaS CRM · Phase 1 Beta
 
@@ -150,7 +150,8 @@ Internet
 
 | Increment | Scope | Status |
 |---|---|---|
-| Inc-1 (this release) | Core CRM, dashboard per reference design, Paddle billing, AI agent (WhatsApp), Meta/TikTok/Google Ads connectors | **Built & peer-reviewed** |
+| Inc-1 | Core CRM, dashboard per reference design, Paddle billing, AI agent (WhatsApp), Meta/TikTok/Google Ads connectors | **Built & peer-reviewed** |
+| Inc-1.1 (v1.0.1) | Data-safety pillar from the Kommo competitive analysis — GAP-01 Meta token lifecycle; GAP-02 WhatsApp media archiving (GCS, pre-30-day-deletion); GAP-03 number quality/tier monitoring (webhook + poll, `channel_health_events` audit); GAP-04 conversation export (CSV/JSON, signed media URLs, RLS-scoped); GAP-05 WhatsApp history import (official Export-chat .txt parser — locale-aware dates, multiline, media placeholders; preview→commit→undo; originals archived) | **Built & tested (18/18 parser tests, 9/9 migrations live)** |
 | Inc-2 | Conversations UI, Calendar, Automations UI, Reports pages (backends exist) | Backlog |
 | Inc-3 | YouTube connector expansion, email sync (Gmail/Outlook), additional MoR checkout locales | Backlog |
 | Inc-4 | AlloyDB migration path, per-tenant CMEK (enterprise tier) | Deferred |
@@ -163,6 +164,7 @@ Internet
 
 - **Architecture compliance gate:** PRs must pass parse/lint/test in CI (`pr-checks`), migrations must run with `ON_ERROR_STOP` against a disposable database, and any new cross-service topic must be added to the shared `TOPICS` map (drift caused defect VR-02).
 - **Peer-review register (this release):** VR-01 missing table grants for app role; VR-02 six undefined Pub/Sub topics; VR-03 top-level await under CommonJS; VR-04 non-existent `Toast` export import; VR-05 missing `vertex_admin` role; VR-06/07 dashboard SQL column mismatches (`lead_quality_score`, `due_at`→`scheduled_at`); VR-08 service/schema drift on AI-scoring columns; VR-09 FK type mismatch (TEXT vs UUID); VR-10 conflicting plan CHECK constraints. **All ten remediated and re-verified against a live PostgreSQL instance.**
+- **v1.0.1 additions:** VR-11 agent webhook routes not reachable through the gateway rewrite (`/webhooks/*` vs `/agent/webhooks/*`); VR-12 gateway rewrites omitted crm-service's `/api/v1` mount prefix (every CRM route would 404 in production); VR-13 exact-match public-route auth check blocked tenant-suffixed webhook URLs. All three fixed and the full chain re-verified. GAP-01…05 register: see Phase E/F Inc-1.1.
 - **Change control:** semantic version tags; canary deploys with automated rollback; schema changes only via numbered migrations.
 
 ---

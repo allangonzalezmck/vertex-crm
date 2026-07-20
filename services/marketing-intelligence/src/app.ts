@@ -62,6 +62,14 @@ export async function buildApp() {
 
   app.get('/health', async () => ({ status: 'ok' }));
 
+  /** GAP-01: daily token expiry sweep (Cloud Scheduler). */
+  app.post('/internal/token-sweep', async () => {
+    const { MetaTokenManager } = await import('./connectors/meta-token-manager.js');
+    const { Pool } = await import('pg');
+    const mgr = new MetaTokenManager(new Pool({ connectionString: process.env['DATABASE_URL'] }));
+    return mgr.sweepExpiring(7);
+  });
+
   app.get('/ready', async (req, reply) => {
     try {
       await redis.ping();

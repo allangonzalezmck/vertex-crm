@@ -21,6 +21,8 @@ import { contactsRouter } from './routes/contacts.js';
 import { dealsRouter } from './routes/deals.js';
 import { activitiesRouter } from './routes/activities.js';
 import { pipelinesRouter } from './routes/pipelines.js';
+import { conversationsExportRouter } from './routes/conversations-export.js';
+import { conversationsImportRouter } from './routes/conversations-import.js';
 import { authMiddleware } from './middleware/auth.js';
 import { tenantContextPlugin } from './plugins/tenant-context.js';
 import { errorHandler } from './middleware/error-handler.js';
@@ -139,6 +141,9 @@ export async function buildApp(): Promise<FastifyInstance> {
     await instance.register(dealsRouter, { prefix: '/deals' });
     await instance.register(activitiesRouter, { prefix: '/activities' });
     await instance.register(pipelinesRouter, { prefix: '/pipelines' });
+    // GAP-04 (export) + GAP-05 (import): tenant conversation data portability
+    await instance.register(conversationsExportRouter, { prefix: '/conversations' });
+    await instance.register(conversationsImportRouter, { prefix: '/conversations' });
   }, { prefix: '/api/v1' });
 
   // ─── Health & Readiness ──────────────────────────────────────────────────

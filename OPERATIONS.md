@@ -1,7 +1,9 @@
 # Vertex CRM — Operations Deployment Runbook
 
 > **Audience:** Operations team. **Goal:** bring Vertex CRM live in our GCP space tomorrow.
-> **Status:** All code peer-reviewed. 6/6 database migrations verified against live PostgreSQL 16. 44/44 source files parse clean. 10 defects found in review — all fixed (see `VERTEX-TOGAF-ARCHITECTURE.md`, Phase G, for the register).
+> **Version 1.0.1** · **Status:** peer-reviewed; 9/9 database migrations verified live on PostgreSQL 16; all source files parse clean; defects VR-01–VR-13 fixed (register in `docs/ARCHITECTURE-TOGAF.md`).
+>
+> **v1.0.1 adds (GAP-01…05):** Meta token lifecycle (long-lived exchange, expiry sweep, needs-reauth alerts) · WhatsApp media archiving to tenant GCS · WhatsApp quality/tier monitoring (webhook + daily poll) · conversation export (CSV/JSON + signed media URLs) · WhatsApp chat-history import (official "Export chat" .txt, preview→commit→undo) · gateway routing fixes (crm /api/v1 rewrites, webhook prefix auth-bypass, agent route alignment).
 
 ---
 
@@ -193,9 +195,9 @@ echo -n "pdl_ntfset_..." | gcloud secrets create PADDLE_WEBHOOK_SECRET --data-fi
 #   SENDGRID_API_KEY, TWILIO_*, META_APP_SECRET, WHATSAPP_VERIFY_TOKEN,
 #   VERTEX_VECTOR_SEARCH_INDEX/ENDPOINT  (full list: .env.example)
 
-# ── 3. Database migrations (ALL SIX, in order — verified 6/6) ─
+# ── 3. Database migrations (ALL NINE, in order — verified 9/9) ─
 ./cloud-sql-proxy $PROJECT_ID:$REGION:vertex-crm-db --port 5432 &
-for m in infrastructure/migrations/00{1..6}_*.sql; do
+for m in infrastructure/migrations/00{1..9}_*.sql; do
   psql -h 127.0.0.1 -U vertex_app -d vertex_crm -v ON_ERROR_STOP=1 -f "$m"
 done
 kill %1
@@ -224,7 +226,22 @@ docker build -t $REGISTRY/frontend:$TAG -f frontend/Dockerfile frontend/ && dock
 #   https://api.vertex-crm.io/api/billing/webhooks/paddle
 #   events: subscription.created/activated/updated/canceled/past_due, transaction.completed
 # Meta App → WhatsApp → Configuration → callback:
-#   https://api.vertex-crm.io/api/agent/webhook/whatsapp  (verify token = WHATSAPP_VERIFY_TOKEN)
+#   https://api.vertex-crm.io/api/agent/webhooks/whatsapp/{tenantId}
+#   (verify token = WHATSAPP_VERIFY_TOKEN)
+#   Webhook fields: messages + phone_number_quality_update + account_update (GAP-03)
+
+# ── 7b. v1.0.1 additions ─────────────────────────────────────
+# Media/import archive bucket (GAP-02/05):
+gcloud storage buckets create gs://$PROJECT_ID-whatsapp-media --location=$REGION
+# Daily sweeps (GAP-01 token expiry, GAP-03 quality poll), 06:00 UTC, OIDC:
+MI=$(gcloud run services describe marketing-intelligence --region=$REGION --format='value(status.url)')
+AG=$(gcloud run services describe ai-sales-agent --region=$REGION --format='value(status.url)')
+gcloud scheduler jobs create http vertex-token-sweep --schedule="0 6 * * *" \
+  --uri=$MI/internal/token-sweep --http-method=POST \
+  --oidc-service-account-email=vertex-crm-sa@$PROJECT_ID.iam.gserviceaccount.com
+gcloud scheduler jobs create http vertex-quality-sweep --schedule="15 6 * * *" \
+  --uri=$AG/internal/quality-sweep --http-method=POST \
+  --oidc-service-account-email=vertex-crm-sa@$PROJECT_ID.iam.gserviceaccount.com
 
 # ── 8. Load balancer + DNS (§3) then smoke test ──────────────
 for svc in api-gateway crm-service marketing-intelligence ai-sales-agent \
@@ -238,7 +255,10 @@ done   # every service must return {"status":"ok",...}
 ## 5. Verification Checklist (sign-off before go-live)
 
 - [ ] `terraform apply` completed, outputs saved
-- [ ] All six migrations ran with `ON_ERROR_STOP` (no errors) — **includes 006 (Paddle + AI columns + plan-constraint fix); skipping it breaks billing and the dashboard**
+- [ ] All NINE migrations ran with `ON_ERROR_STOP` (no errors) — 006 (Paddle/plan fix), 007 (token+media), 008 (quality), 009 (import) are all load-bearing
+- [ ] Bucket `$PROJECT_ID-whatsapp-media` exists; both Cloud Scheduler sweeps created (§7b)
+- [ ] Export works: `GET /api/conversations/export?format=csv` returns a CSV for a logged-in tenant
+- [ ] Import works: preview→commit of a WhatsApp "Export chat" .txt creates an IMPORTED conversation
 - [ ] 9/9 `/health` endpoints return `ok`
 - [ ] Paddle sandbox checkout completes and webhook flips tenant `billing_status` to `active`
 - [ ] WhatsApp webhook verify handshake passes

@@ -14,6 +14,12 @@ import { SalesAgent } from './agent/sales-agent.js';
 import { WhatsAppAdapter, WhatsAppWebhookSchema } from './channels/whatsapp.adapter.js';
 import { CalBookingService } from './booking/cal-booking.service.js';
 import { getTenantClient } from '../../../shared/src/utils/database.js';
+import { Pool } from 'pg';
+import { WhatsAppMediaArchiver } from './channels/whatsapp-media-archiver.js';
+import { WhatsAppQualityMonitor } from './channels/whatsapp-quality-monitor.js';
+
+const servicePool = new Pool({ connectionString: process.env['DATABASE_URL'] });
+const qualityMonitor = new WhatsAppQualityMonitor(servicePool);
 import type { TenantAgentConfig } from './agent/sales-agent.js';
 import type { TenantId } from '../../../shared/src/types/index.js';
 
@@ -89,6 +95,24 @@ export async function buildApp() {
 
   // ─── Health ─────────────────────────────────────────────────────────────
 
+  /** GAP-03: daily quality poll across active WhatsApp channels (Cloud Scheduler). */
+  app.post('/internal/quality-sweep', async () => {
+    const { rows } = await servicePool.query(
+      `SELECT tenant_id, config_plain FROM channel_configs
+        WHERE channel = 'whatsapp' AND is_active = true AND config_plain IS NOT NULL`
+    );
+    let polled = 0;
+    for (const r of rows) {
+      const cfg = r.config_plain as { phoneNumberId?: string; accessToken?: string };
+      if (cfg.phoneNumberId && cfg.accessToken) {
+        await qualityMonitor.pollQuality(r.tenant_id, cfg.phoneNumberId, cfg.accessToken)
+          .catch(() => {});
+        polled++;
+      }
+    }
+    return { polled };
+  });
+
   app.get('/health', async () => ({ status: 'ok' }));
 
   app.get('/ready', async (req, reply) => {
@@ -104,7 +128,7 @@ export async function buildApp() {
 
   /** WhatsApp webhook verification (GET) */
   app.get<{ Querystring: Record<string, string> }>(
-    '/webhooks/whatsapp',
+    '/agent/webhooks/whatsapp',
     async (req, reply) => {
       const { 'hub.mode': mode, 'hub.verify_token': token, 'hub.challenge': challenge } = req.query;
 
@@ -119,7 +143,7 @@ export async function buildApp() {
 
   /** WhatsApp message webhook (POST) */
   app.post<{ Params: { tenantId: string } }>(
-    '/webhooks/whatsapp/:tenantId',
+    '/agent/webhooks/whatsapp/:tenantId',
     async (req, reply) => {
       // Respond 200 immediately — WhatsApp requires <5s response time
       // Processing happens synchronously here but would be Pub/Sub in higher-volume setups
@@ -143,8 +167,28 @@ export async function buildApp() {
       const waConfig = await getWhatsAppConfig(tenantId);
       if (!waConfig) return;
 
+      // GAP-03: non-message changes (quality/tier/account events) → monitor
+      for (const entry of parsed.data.entry) {
+        for (const change of entry.changes) {
+          if (change.field !== 'messages') {
+            await qualityMonitor
+              .handleWebhookChange(tenantId, change as never)
+              .catch((err) => logger.warn('Quality monitor error', { err: (err as Error).message }));
+          }
+        }
+      }
+
       const adapter = new WhatsAppAdapter(waConfig, logger);
       const messages = adapter.parseWebhook(parsed.data, tenantId, agentConfig);
+
+      // GAP-02: archive attachments before Meta's ~30-day deletion
+      const archiver = new WhatsAppMediaArchiver(waConfig.accessToken);
+      for (const m of messages) {
+        if (m.media) {
+          const archived = await archiver.archive(m.media, tenantId, m.conversationId);
+          if (archived) (m as { archivedMedia?: typeof archived }).archivedMedia = archived;
+        }
+      }
 
       for (const message of messages) {
         try {
@@ -198,7 +242,7 @@ export async function buildApp() {
   // ─── Facebook Messenger Webhook ───────────────────────────────────────────
 
   app.get<{ Querystring: Record<string, string> }>(
-    '/webhooks/facebook',
+    '/agent/webhooks/facebook',
     async (req, reply) => {
       const { 'hub.mode': mode, 'hub.verify_token': token, 'hub.challenge': challenge } = req.query;
       const verifyToken = process.env['FACEBOOK_VERIFY_TOKEN'] ?? '';
@@ -210,7 +254,7 @@ export async function buildApp() {
   );
 
   app.post<{ Params: { tenantId: string } }>(
-    '/webhooks/facebook/:tenantId',
+    '/agent/webhooks/facebook/:tenantId',
     async (req, reply) => {
       reply.status(200).send({ status: 'ok' });
 
@@ -262,7 +306,7 @@ export async function buildApp() {
   // ─── Cal.com Booking Webhook ──────────────────────────────────────────────
 
   app.post<{ Params: { tenantId: string } }>(
-    '/webhooks/cal/:tenantId',
+    '/agent/webhooks/cal/:tenantId',
     async (req, reply) => {
       const tenantId = req.params.tenantId as TenantId;
       const event = req.body as {

@@ -9,6 +9,7 @@
  */
 
 import type { TenantId } from '../../../../shared/src/types/index.js';
+import { MetaAuthError, isMetaAuthError } from './meta-token-manager.js';
 import type { UnifiedMetricRow } from '../../../../shared/src/types/index.js';
 import type { Logger } from '../../../../shared/src/utils/logger.js';
 
@@ -195,6 +196,11 @@ export class MetaConnector {
 
       if ((json as { error?: { message: string; code: number } }).error) {
         const apiError = (json as { error: { message: string; code: number } }).error;
+        // GAP-01: dead credentials must surface as auth errors, not sync errors,
+        // so the sync job can mark the connector needs_reauth and alert the tenant
+        if (isMetaAuthError(apiError.code)) {
+          throw new MetaAuthError(apiError.message, apiError.code);
+        }
         throw new MetaApiError(apiError.message, apiError.code, accountId);
       }
 

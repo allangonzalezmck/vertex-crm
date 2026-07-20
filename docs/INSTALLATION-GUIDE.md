@@ -1,7 +1,7 @@
 # Vertex CRM — Complete Installation Guide
 
 **From zero to a live product on Google Cloud — no prior knowledge required.**
-Version 1.0 · Supports **macOS** and **Windows** · Billing works from **Costa Rica** (Paddle)
+Version 1.0.1 · Supports **macOS** and **Windows** · Billing works from **Costa Rica** (Paddle)
 
 > **How to use this guide:** follow the sections in order and don't skip any. Every command is meant to be copied and pasted exactly. Where macOS and Windows differ, both paths are shown. When you finish §18, Vertex CRM is live on the internet.
 >
@@ -162,7 +162,7 @@ That file contains the database connection name and Redis address — you'll pas
 
 ### §10. Load the database structure (migrations)
 
-The database starts empty; six numbered SQL files create every table. **Run all six, in order — including 006** (it contains the Paddle billing columns and dashboard fixes; without it the product does not work).
+The database starts empty; **nine** numbered SQL files create every table. **Run all nine, in order.** 006 carries the Paddle billing columns, and 007–009 carry the v1.0.1 features (token monitoring, media archiving, quality monitoring, chat import); without them the product does not work.
 
 ```bash
 # Download the small proxy program that connects your computer securely to the cloud database
@@ -175,16 +175,14 @@ chmod +x cloud-sql-proxy
 ./cloud-sql-proxy $PROJECT_ID:$REGION:vertex-crm-db --port 5432 &
 
 # Run the six migrations (enter the DB password from terraform-outputs.txt when asked)
-for m in infrastructure/migrations/001*.sql infrastructure/migrations/002*.sql \
-         infrastructure/migrations/003*.sql infrastructure/migrations/004*.sql \
-         infrastructure/migrations/005*.sql infrastructure/migrations/006*.sql; do
+for m in infrastructure/migrations/00[1-9]_*.sql; do
   echo "Running $m"
   psql -h 127.0.0.1 -U vertex_app -d vertex_crm -v ON_ERROR_STOP=1 -f "$m" || break
 done
 kill %1   # stop the proxy
 ```
 
-Success looks like a stream of `CREATE TABLE` / `ALTER TABLE` lines with **no line starting with `ERROR`**. (These exact six files were tested end-to-end on a live PostgreSQL 16 before delivery — they pass 6/6.)
+Success looks like a stream of `CREATE TABLE` / `ALTER TABLE` lines with **no line starting with `ERROR`**. (These exact nine files were tested end-to-end on a live PostgreSQL 16 before delivery — they pass 9/9.)
 
 ### §11. Store the secret keys
 
@@ -194,7 +192,7 @@ Every password and API key lives in Google Secret Manager, never in code. The co
 echo -n "PASTE-THE-REAL-VALUE" | gcloud secrets create SECRET_NAME --data-file=-
 ```
 
-Minimum set to boot the platform: `DATABASE_URL`, `REDIS_URL` (both assembled from `terraform-outputs.txt` — the exact format is commented inside `.env.example`), `JWT_ISSUER`, plus later: the six `PADDLE_*` values (§15), `SENDGRID_API_KEY`, `META_APP_SECRET`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_VERIFY_TOKEN` (§16), and `CALCOM_API_KEY`.
+Minimum set to boot the platform: `DATABASE_URL`, `REDIS_URL` (both assembled from `terraform-outputs.txt` — the exact format is commented inside `.env.example`), `JWT_ISSUER`, plus later: the six `PADDLE_*` values (§15), `SENDGRID_API_KEY`, `META_APP_ID`, `META_APP_SECRET`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_VERIFY_TOKEN` (§16), and `CALCOM_API_KEY`.
 
 ---
 
@@ -305,9 +303,30 @@ Paddle is a *Merchant of Record*: legally, Paddle sells Vertex subscriptions to 
 
 1. https://developers.facebook.com → My Apps → *Create App* → type **Business**.
 2. Add the **WhatsApp** product → you get a test phone number and a temporary access token.
-3. Configuration → Webhook → Callback URL: `https://api.YOUR-DOMAIN/api/agent/webhook/whatsapp` · Verify token: invent a long random string, save it as the `WHATSAPP_VERIFY_TOKEN` secret, and paste the same string here. Click *Verify and save* — Vertex answers the challenge automatically. Subscribe to the `messages` field.
+3. Configuration → Webhook → Callback URL: `https://api.YOUR-DOMAIN/api/agent/webhooks/whatsapp/{your-tenant-id}` (the tenant ID appears in Settings → Workspace after §18; use the test tenant's ID first) · Webhook fields: subscribe `messages`, **`phone_number_quality_update`**, and **`account_update`** (the last two power the number-health alerts). · Verify token: invent a long random string, save it as the `WHATSAPP_VERIFY_TOKEN` secret, and paste the same string here. Click *Verify and save* — Vertex answers the challenge automatically. Subscribe to the `messages` field.
 4. Store the access token as `WHATSAPP_ACCESS_TOKEN` and redeploy ai-sales-agent.
 (For production traffic later: verify your business in Meta Business Manager and register a real phone number.)
+
+### §16b. v1.0.1 features setup (5 minutes)
+
+Three additions power the data-safety features (media archiving, token/quality monitoring, chat import):
+
+```bash
+# 1. The archive bucket (WhatsApp attachments + imported chat originals live here)
+gcloud storage buckets create gs://$PROJECT_ID-whatsapp-media --location=$REGION
+
+# 2. Daily health sweeps
+MI=$(gcloud run services describe marketing-intelligence --region=$REGION --format='value(status.url)')
+AG=$(gcloud run services describe ai-sales-agent --region=$REGION --format='value(status.url)')
+gcloud scheduler jobs create http vertex-token-sweep --schedule="0 6 * * *" \
+  --uri=$MI/internal/token-sweep --http-method=POST \
+  --oidc-service-account-email=vertex-crm-sa@$PROJECT_ID.iam.gserviceaccount.com
+gcloud scheduler jobs create http vertex-quality-sweep --schedule="15 6 * * *" \
+  --uri=$AG/internal/quality-sweep --http-method=POST \
+  --oidc-service-account-email=vertex-crm-sa@$PROJECT_ID.iam.gserviceaccount.com
+```
+
+What tenants get from this: attachments leads send on WhatsApp are archived forever (Meta deletes them after ~30 days); tenants are warned 7 days before their Meta connection would silently expire; a green/yellow/red health status tracks their WhatsApp number's standing; **Settings → Data** offers "Export conversations" (CSV/JSON, with media links) and "Import WhatsApp history" (upload the .txt from WhatsApp's own *Export chat* feature — preview first, one-click undo after).
 
 ### §17. Domain, HTTPS, and the load balancer
 

@@ -483,8 +483,8 @@ FORMAT:
       await client.query(
         `INSERT INTO conversation_turns
            (id, conversation_id, tenant_id, direction, content, sentiment_score,
-            intent, confidence_score, fsm_state, created_at)
-         VALUES ($1, $2, $3, 'inbound', $4, $5, $6, $7, $8, NOW())`,
+            intent, confidence_score, fsm_state, media_type, media_gcs_path, media_mime, created_at)
+         VALUES ($1, $2, $3, 'inbound', $4, $5, $6, $7, $8, $9, $10, $11, NOW())`,
         [
           randomUUID(),
           inbound.conversationId,
@@ -494,6 +494,10 @@ FORMAT:
           nlu.intent,
           nlu.confidenceScore,
           context.state,
+          // GAP-02: attachment metadata (null for plain text turns)
+          (inbound as { media?: { kind: string } }).media?.kind ?? null,
+          (inbound as { archivedMedia?: { gcsPath: string } }).archivedMedia?.gcsPath ?? null,
+          (inbound as { archivedMedia?: { mimeType: string } }).archivedMedia?.mimeType ?? null,
         ]
       );
 
