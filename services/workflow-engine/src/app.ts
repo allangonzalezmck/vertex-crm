@@ -8,10 +8,12 @@
 import Fastify from 'fastify';
 import helmet from '@fastify/helmet';
 import cors from '@fastify/cors';
-import { logger } from '@vertex/shared/utils/logger';
+import { createLogger } from '@vertex/shared/utils/logger';
 import { getTenantClient, withTransaction } from '@vertex/shared/utils/database';
 import { publishEvent, TOPICS } from '@vertex/shared/utils/pubsub';
 import type { TenantId } from '@vertex/shared/types';
+
+const logger = createLogger('workflow-engine');
 
 // ─── Trigger Types ────────────────────────────────────────────────────────────
 
@@ -145,36 +147,33 @@ async function executeAction(
 
       case 'notify_user': {
         // Publish notification event — notification-service handles delivery
-        await publishEvent(TOPICS.NOTIFICATIONS, {
-          type: 'workflow.notification',
+        await publishEvent(
+          TOPICS.NOTIFICATIONS,
+          'workflow.notification',
           tenantId,
-          payload: {
+          {
             userId: action.config.userId ?? (payload as any).ownerId,
             title: action.config.title,
             body: action.config.body,
             entityType: action.config.entityType,
             entityId: (payload as any).id,
-          },
-          timestamp: new Date().toISOString(),
-          traceId: executionId,
-        });
+          }
+        );
         return { success: true };
       }
 
       case 'send_email': {
         // Publish to notification topic — notification-service handles SMTP/SendGrid
-        await publishEvent(TOPICS.NOTIFICATIONS, {
-          type: 'workflow.send_email',
+        await publishEvent(
+          TOPICS.NOTIFICATIONS,
+          'workflow.send_email',
           tenantId,
-          payload: {
+          {
             to: action.config.to === '$trigger.email' ? (payload as any).email : action.config.to,
             templateId: action.config.templateId,
             variables: { ...payload, ...((action.config.variables as object) ?? {}) },
-          },
-          timestamp: new Date().toISOString(),
-          traceId: executionId,
-        });
-        return { success: true };
+          }
+        );
       }
 
       case 'webhook': {
@@ -231,7 +230,7 @@ async function processEvent(
         continue;
       }
 
-      logger.info({ workflowId: wfRow.id, triggerType, tenantId }, 'Executing workflow');
+      logger.info('Executing workflow', { workflowId: wfRow.id, triggerType, tenantId });
 
       // Record execution start
       const execResult = await db.query(
@@ -250,7 +249,7 @@ async function processEvent(
         actionResults.push({ type: action.type, ...result });
         if (!result.success) {
           allSucceeded = false;
-          logger.warn({ workflowId: wfRow.id, action: action.type, error: result.error }, 'Action failed');
+          logger.warn('Action failed', { workflowId: wfRow.id, action: action.type, error: result.error });
           break; // Stop on failure
         }
       }
@@ -313,7 +312,7 @@ app.post('/pubsub', async (request, reply) => {
   try {
     await processEvent(event.type as TriggerType, event.tenantId, event.payload);
   } catch (err) {
-    logger.error({ err, eventType: event.type, tenantId: event.tenantId }, 'Workflow processing error');
+    logger.error('Workflow processing error', err, { eventType: event.type, tenantId: event.tenantId });
     // Return 200 to prevent DLQ for transient errors; rely on workflow_executions for retry
   }
 
@@ -346,9 +345,9 @@ const start = async () => {
   try {
     const port = parseInt(process.env.PORT ?? '8080', 10);
     await app.listen({ port, host: '0.0.0.0' });
-    logger.info({ port }, 'Workflow engine started');
+    logger.info('Workflow engine started', { port });
   } catch (err) {
-    logger.error({ err }, 'Failed to start workflow engine');
+    logger.error('Failed to start workflow engine', err);
     process.exit(1);
   }
 };
