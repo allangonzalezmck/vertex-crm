@@ -7,10 +7,14 @@
 
 import Fastify from 'fastify';
 import helmet from '@fastify/helmet';
-import { logger } from '@vertex/shared/utils/logger';
+import { createLogger } from '@vertex/shared/utils/logger';
 import { getTenantClient } from '@vertex/shared/utils/database';
 import type { TenantId } from '@vertex/shared/types';
 
+
+const logger = createLogger('notification-service');
+
+const logger = createLogger('notification-service');
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type NotificationChannel = 'email' | 'sms' | 'push' | 'in_app';
@@ -189,7 +193,7 @@ async function dispatchNotification(payload: NotificationPayload): Promise<void>
         );
       }
 
-      logger.info({ channel: payload.channel, tenantId: payload.tenantId }, 'Notification sent');
+      logger.info('Notification sent', { channel: payload.channel, tenantId: payload.tenantId });
     } catch (err) {
       if (logId) {
         await db.query(
@@ -266,7 +270,7 @@ async function routeEvent(
     }
 
     default:
-      logger.debug({ eventType }, 'Unhandled notification event type');
+      logger.debug('Unhandled notification event type', { eventType });
   }
 }
 
@@ -298,7 +302,7 @@ app.post('/pubsub', async (request, reply) => {
   try {
     await routeEvent(event.type, event.tenantId, event.payload);
   } catch (err) {
-    logger.error({ err, eventType: event.type, tenantId: event.tenantId }, 'Notification dispatch failed');
+    logger.error('Notification dispatch failed', { err, eventType: event.type, tenantId: event.tenantId });
     // Return 500 to trigger Pub/Sub retry via DLQ
     return reply.code(500).send({ error: 'Dispatch failed' });
   }
@@ -363,9 +367,9 @@ const start = async () => {
   try {
     const port = parseInt(process.env.PORT ?? '8080', 10);
     await app.listen({ port, host: '0.0.0.0' });
-    logger.info({ port }, 'Notification service started');
+    logger.info('Notification service started', { port });
   } catch (err) {
-    logger.error({ err }, 'Failed to start notification service');
+    logger.error('Failed to start notification service', { err });
     process.exit(1);
   }
 };
