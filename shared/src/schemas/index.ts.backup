@@ -70,6 +70,8 @@ export const LeadSourceSchema = z.enum([
   'import',
   'api',
 ]);
+// Line 73: Replace ENTIRE CreateLeadSchema + UpdateLeadSchema block with:
+
 // Base schema without refine - allows .partial()
 const CreateLeadSchemaBase = z.object({
   firstName: z.string().min(1).max(100).trim(),
@@ -86,6 +88,7 @@ const CreateLeadSchemaBase = z.object({
   notes: z.string().max(5000).optional(),
 });
 
+// Apply refine AFTER base is defined
 export const CreateLeadSchema = CreateLeadSchemaBase.refine(
   (data) => data.email || data.phone,
   { message: 'At least one of email or phone is required', path: ['email'] }
@@ -93,11 +96,13 @@ export const CreateLeadSchema = CreateLeadSchemaBase.refine(
 
 export type CreateLeadInput = z.infer<typeof CreateLeadSchema>;
 
+// Use base for partial (before refine is applied)
 export const UpdateLeadSchema = CreateLeadSchemaBase.partial().extend({
   status: LeadStatusSchema.optional(),
 });
 
 export type UpdateLeadInput = z.infer<typeof UpdateLeadSchema>;
+
 export const DealStageSchema = z.enum([
   'prospecting',
   'qualification',

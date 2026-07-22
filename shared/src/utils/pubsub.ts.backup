@@ -36,6 +36,9 @@ async function getTopic(topicName: string): Promise<Topic> {
       maxMessages: 100,
       maxMilliseconds: 500, // flush within 500ms
     },
+    flowControl: {
+      maxOutstandingMessages: 1000,
+    },
   });
 
   topicCache.set(topicName, topic);
@@ -110,6 +113,9 @@ export function subscribeToTopic<T>(
 ): Subscription {
   const client = getPubSubClient();
   const subscription = client.subscription(subscriptionName, {
+    flowControl: {
+      maxMessages: options.maxConcurrent ?? 10,
+    },
   });
 
   subscription.on('message', async (message: Message) => {

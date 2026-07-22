@@ -19,7 +19,7 @@ const ActivityOutcome = z.enum([
   'pending',
 ]);
 
-const ActivityCreateSchemaBase = z.object({
+const ActivityCreateSchema = z.object({
   type: ActivityType,
   subject: z.string().min(1).max(500),
   notes: z.string().optional(),
@@ -36,14 +36,12 @@ const ActivityCreateSchemaBase = z.object({
   // For tasks
   dueDate: z.string().datetime().optional(),
   priority: z.enum(['low', 'medium', 'high']).optional(),
-});
-
-const ActivityCreateSchema = ActivityCreateSchemaBase.refine(
+}).refine(
   data => data.leadId || data.contactId || data.dealId || data.accountId,
   { message: 'At least one association (leadId, contactId, dealId, accountId) is required' }
 );
 
-const ActivityUpdateSchema = ActivityCreateSchemaBase.partial().omit({ type: true });
+const ActivityUpdateSchema = ActivityCreateSchema.partial().omit({ type: true });
 
 const ActivityListSchema = z.object({
   type: ActivityType.optional(),

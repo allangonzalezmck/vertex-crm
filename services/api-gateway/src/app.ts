@@ -21,7 +21,7 @@ const logger = createLogger('api-gateway');
 
 // ── Redis rate limiter ───────────────────────────────────────────────────────
 const redis = new Redis(process.env.REDIS_URL!, { lazyConnect: true });
-redis.connect().catch((err) => logger.error({ err }, 'Redis connect failed'));
+redis.connect().catch((err) => logger.error('Redis connect failed', err));
 
 async function slidingWindowRateLimit(
   key: string,
@@ -112,7 +112,7 @@ app.addHook('preHandler', async (req: FastifyRequest, reply: FastifyReply) => {
     });
     payload = p as typeof payload;
   } catch (err) {
-    logger.warn({ err, traceId }, 'JWT verification failed');
+    logger.warn('JWT verification failed', { traceId });
     return reply.status(401).send({ error: 'Invalid or expired token' });
   }
 
@@ -138,19 +138,19 @@ app.addHook('preHandler', async (req: FastifyRequest, reply: FastifyReply) => {
   reply.header('x-ratelimit-reset', Math.ceil(resetAt / 1000));
 
   if (!allowed) {
-    logger.warn({ tenantId, traceId }, 'Rate limit exceeded');
+    logger.warn('Rate limit exceeded', { tenantId, traceId });
     return reply.status(429).send({
       error: 'Too many requests',
       retryAfter: Math.ceil((resetAt - Date.now()) / 1000),
     });
   }
 
-  logger.info({
+  logger.info('Proxying request', {
     method: req.method,
     url: req.url,
     tenantId,
     traceId,
-  }, 'Proxying request');
+  });
 });
 
 // ── Route → upstream mapping ─────────────────────────────────────────────────
@@ -256,7 +256,7 @@ const start = async () => {
     await app.listen({ port: 8080, host: '0.0.0.0' });
     logger.info('api-gateway listening on :8080');
   } catch (err) {
-    logger.error({ err }, 'Failed to start api-gateway');
+    logger.error('Failed to start api-gateway', err);
     process.exit(1);
   }
 };

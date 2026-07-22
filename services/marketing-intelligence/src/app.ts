@@ -9,7 +9,7 @@ import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import { z } from 'zod';
 import { createLogger } from '../../../shared/src/utils/logger.js';
-import { createSuccessResponse, createErrorResponse } from '../../../shared/src/schemas/index.js';
+import { successResponse, errorResponse } from '../../../shared/src/schemas/index.js';
 import { MetaConnector } from './connectors/meta.connector.js';
 import { TikTokConnector } from './connectors/tiktok.connector.js';
 import { GoogleAdsConnector } from './connectors/google-ads.connector.js';

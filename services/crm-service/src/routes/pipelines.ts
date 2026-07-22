@@ -24,7 +24,7 @@ const PipelineCreateSchema = z.object({
   stages: z.array(StageSchema).min(2),
 });
 
-export async function pipelineRoutes(fastify: FastifyInstance) {
+export async function pipelinesRouter(fastify: FastifyInstance) {
   // ── List ──────────────────────────────────────────────────────────────────
   fastify.get('/', async (request, reply) => {
     const { db } = request as any;

@@ -40,7 +40,7 @@ function getJwks(): ReturnType<typeof jose.createRemoteJWKSet> {
 const PUBLIC_ROUTES = new Set(['/health', '/ready']);
 
 // Role → permissions mapping
-const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
+export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   owner: ['leads:read', 'leads:write', 'leads:delete', 'contacts:read', 'contacts:write', 'contacts:delete', 'deals:read', 'deals:write', 'deals:delete', 'marketing:read', 'marketing:connect', 'ai_agent:read', 'ai_agent:configure', 'workflows:read', 'workflows:write', 'billing:read', 'billing:write', 'admin:read', 'admin:write', 'audit_log:read'],
   admin: ['leads:read', 'leads:write', 'leads:delete', 'contacts:read', 'contacts:write', 'contacts:delete', 'deals:read', 'deals:write', 'deals:delete', 'marketing:read', 'marketing:connect', 'ai_agent:read', 'ai_agent:configure', 'workflows:read', 'workflows:write', 'billing:read', 'admin:read', 'admin:write', 'audit_log:read'],
   manager: ['leads:read', 'leads:write', 'contacts:read', 'contacts:write', 'deals:read', 'deals:write', 'marketing:read', 'ai_agent:read', 'workflows:read', 'workflows:write'],

@@ -8,9 +8,9 @@ COPY shared/src ./shared/src/
 COPY services/crm-service/package.json services/crm-service/tsconfig.json ./services/crm-service/
 COPY services/crm-service/src ./services/crm-service/src/
 
-RUN npm install --workspace=@nexus/shared --workspace=@nexus/crm-service
-RUN npm run build --workspace=@nexus/shared
-RUN npm run build --workspace=@nexus/crm-service
+RUN npm install --workspace=@vertex/shared --workspace=@vertex/crm-service
+RUN npm run build --workspace=@vertex/shared
+RUN npm run build --workspace=@vertex/crm-service
 
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM node:20-alpine AS runtime
@@ -24,7 +24,7 @@ COPY --from=builder /app/package.json ./
 COPY --from=builder /app/shared/package.json ./shared/
 COPY --from=builder /app/services/crm-service/package.json ./services/crm-service/
 
-RUN npm install --workspace=@nexus/shared --workspace=@nexus/crm-service --omit=dev
+RUN npm install --workspace=@vertex/shared --workspace=@vertex/crm-service --omit=dev
 
 COPY --from=builder /app/shared/dist ./shared/dist/
 COPY --from=builder /app/services/crm-service/dist ./services/crm-service/dist/

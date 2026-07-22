@@ -55,7 +55,7 @@ const DealListSchema = z.object({
 
 // ─── Route Registration ───────────────────────────────────────────────────────
 
-export async function dealRoutes(fastify: FastifyInstance) {
+export async function dealsRouter(fastify: FastifyInstance) {
   // ── List Deals ─────────────────────────────────────────────────────────────
   fastify.get('/', async (request, reply) => {
     const query = DealListSchema.parse(request.query);

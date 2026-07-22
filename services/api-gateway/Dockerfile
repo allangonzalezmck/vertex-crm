@@ -8,9 +8,9 @@ COPY shared/src ./shared/src/
 COPY services/api-gateway/package.json services/api-gateway/tsconfig.json ./services/api-gateway/
 COPY services/api-gateway/src ./services/api-gateway/src/
 
-RUN npm install --workspace=@nexus/shared --workspace=@nexus/api-gateway
-RUN npm run build --workspace=@nexus/shared
-RUN npm run build --workspace=@nexus/api-gateway
+RUN npm install --workspace=@vertex/shared --workspace=@vertex/api-gateway
+RUN npm run build --workspace=@vertex/shared
+RUN npm run build --workspace=@vertex/api-gateway
 
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM node:20-alpine AS runtime
@@ -24,7 +24,7 @@ COPY --from=builder /app/package.json ./
 COPY --from=builder /app/shared/package.json ./shared/
 COPY --from=builder /app/services/api-gateway/package.json ./services/api-gateway/
 
-RUN npm install --workspace=@nexus/shared --workspace=@nexus/api-gateway --omit=dev
+RUN npm install --workspace=@vertex/shared --workspace=@vertex/api-gateway --omit=dev
 
 COPY --from=builder /app/shared/dist ./shared/dist/
 COPY --from=builder /app/services/api-gateway/dist ./services/api-gateway/dist/

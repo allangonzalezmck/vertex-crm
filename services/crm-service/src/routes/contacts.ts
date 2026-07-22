@@ -41,7 +41,7 @@ const ContactSearchSchema = z.object({
 
 // ─── Route Registration ───────────────────────────────────────────────────────
 
-export async function contactRoutes(fastify: FastifyInstance) {
+export async function contactsRouter(fastify: FastifyInstance) {
   // ── List / Search ──────────────────────────────────────────────────────────
   fastify.get('/', async (request, reply) => {
     const query = ContactSearchSchema.parse(request.query);
