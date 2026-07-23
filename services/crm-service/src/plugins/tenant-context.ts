@@ -1,6 +1,6 @@
 /**
  * @file services/crm-service/src/plugins/tenant-context.ts
- * @description Fastify plugin that extracts tenant_id from the verified JWT,
+ * @description Fastify plugin that extracts tenant context from the verified JWT,
  * attaches it to request, and sets up the RLS-scoped database client.
  * Must run AFTER the auth middleware has verified the token.
  */
@@ -8,8 +8,10 @@
 import fp from 'fastify-plugin';
 import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import { getTenantClient } from '@vertex/shared/utils/database';
-import { logger } from '@vertex/shared/utils/logger';
+import { createLogger, type Logger } from '@vertex/shared/utils/logger';
 import type { TenantId, UserId } from '@vertex/shared/types';
+
+const logger = createLogger('tenant-context');
 
 // ─── Augment Fastify request ─────────────────────────────────────────────────
 
@@ -20,6 +22,8 @@ declare module 'fastify' {
     userRole: string;
     /** RLS-scoped database query function */
     db: Awaited<ReturnType<typeof getTenantClient>>;
+    /** Request-scoped structured logger */
+    vlog: Logger;
   }
 }
 
@@ -33,9 +37,9 @@ const tenantContextPlugin: FastifyPluginAsync = async (fastify) => {
       return;
     }
 
-    // JWT claims populated by auth middleware
-    const claims = (request as any).jwtClaims;
-    if (!claims?.tenant_id || !claims?.sub) {
+    // Context populated by auth middleware (auth.ts sets request.tenantContext)
+    const ctx = request.tenantContext;
+    if (!ctx?.tenantId || !ctx?.userId) {
       return reply.code(401).send({
         success: false,
         error: { code: 'MISSING_CONTEXT', message: 'Authentication required' },
@@ -44,20 +48,19 @@ const tenantContextPlugin: FastifyPluginAsync = async (fastify) => {
       });
     }
 
-    const tenantId = claims.tenant_id as TenantId;
-    const userId = claims.sub as UserId;
-    const userRole = claims.role ?? 'viewer';
-
     // Attach to request
-    request.tenantId = tenantId;
-    request.userId = userId;
-    request.userRole = userRole;
+    request.tenantId = ctx.tenantId;
+    request.userId = ctx.userId;
+    request.userRole = ctx.role ?? 'viewer';
 
     // Create RLS-scoped DB client (SET LOCAL app.current_tenant_id)
     try {
-      request.db = await getTenantClient(tenantId);
+      request.db = await getTenantClient(ctx.tenantId);
     } catch (err) {
-      logger.error({ err, tenantId, userId }, 'Failed to create tenant DB client');
+      logger.error('Failed to create tenant DB client', err, {
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+      });
       return reply.code(503).send({
         success: false,
         error: { code: 'DB_UNAVAILABLE', message: 'Database temporarily unavailable' },
@@ -81,5 +84,5 @@ const tenantContextPlugin: FastifyPluginAsync = async (fastify) => {
 
 export default fp(tenantContextPlugin, {
   name: 'tenant-context',
-  dependencies: ['auth'],
+  dependencies: ['auth-middleware'],
 });

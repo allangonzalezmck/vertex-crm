@@ -24,7 +24,7 @@ import { pipelinesRouter } from './routes/pipelines.js';
 import { conversationsExportRouter } from './routes/conversations-export.js';
 import { conversationsImportRouter } from './routes/conversations-import.js';
 import { authMiddleware } from './middleware/auth.js';
-import { tenantContextPlugin } from './plugins/tenant-context.js';
+import tenantContextPlugin from './plugins/tenant-context.js';
 import { errorHandler } from './middleware/error-handler.js';
 
 const SERVICE_NAME = 'crm-service';
