@@ -7,6 +7,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { NotFoundError, ForbiddenError, ConflictError } from '../middleware/error-handler';
 import { ROLE_PERMISSIONS } from '../middleware/auth';
+import type { UserRole } from '../../../../shared/src/types/index.js';
 
 const StageSchema = z.object({
   name: z.string().min(1).max(100),
@@ -82,7 +83,7 @@ export async function pipelinesRouter(fastify: FastifyInstance) {
   // ── Create ────────────────────────────────────────────────────────────────
   fastify.post('/', async (request, reply) => {
     const { userRole, userId, db } = request as any;
-    if (!ROLE_PERMISSIONS[userRole]?.settings?.write) throw new ForbiddenError();
+    if (!ROLE_PERMISSIONS[userRole as UserRole]?.includes('admin:write')) throw new ForbiddenError();
 
     const body = PipelineCreateSchema.parse(request.body);
 
@@ -128,7 +129,7 @@ export async function pipelinesRouter(fastify: FastifyInstance) {
   // ── Update ────────────────────────────────────────────────────────────────
   fastify.patch<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const { userRole, userId, db } = request as any;
-    if (!ROLE_PERMISSIONS[userRole]?.settings?.write) throw new ForbiddenError();
+    if (!ROLE_PERMISSIONS[userRole as UserRole]?.includes('admin:write')) throw new ForbiddenError();
 
     const body = PipelineCreateSchema.partial().parse(request.body);
 
@@ -160,7 +161,7 @@ export async function pipelinesRouter(fastify: FastifyInstance) {
   // ── Delete ────────────────────────────────────────────────────────────────
   fastify.delete<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const { userRole, db } = request as any;
-    if (!ROLE_PERMISSIONS[userRole]?.settings?.write) throw new ForbiddenError();
+    if (!ROLE_PERMISSIONS[userRole as UserRole]?.includes('admin:write')) throw new ForbiddenError();
 
     // Check for active deals
     const dealsCheck = await db.query(

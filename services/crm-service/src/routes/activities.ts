@@ -8,6 +8,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { NotFoundError, ForbiddenError } from '../middleware/error-handler';
 import { ROLE_PERMISSIONS } from '../middleware/auth';
+import type { UserRole } from '../../../../shared/src/types/index.js';
 
 // ─── Schemas ─────────────────────────────────────────────────────────────────
 
@@ -207,7 +208,7 @@ export async function activitiesRouter(fastify: FastifyInstance) {
   // ── Create ────────────────────────────────────────────────────────────────
   fastify.post('/', async (request, reply) => {
     const { userRole, userId, db } = request as any;
-    if (!ROLE_PERMISSIONS[userRole]?.leads?.write) throw new ForbiddenError();
+    if (!ROLE_PERMISSIONS[userRole as UserRole]?.includes('leads:write')) throw new ForbiddenError();
 
     const body = ActivityCreateSchema.parse(request.body);
 
@@ -241,7 +242,7 @@ export async function activitiesRouter(fastify: FastifyInstance) {
   // ── Complete Activity ──────────────────────────────────────────────────────
   fastify.post<{ Params: { id: string } }>('/:id/complete', async (request, reply) => {
     const { userRole, userId, db } = request as any;
-    if (!ROLE_PERMISSIONS[userRole]?.leads?.write) throw new ForbiddenError();
+    if (!ROLE_PERMISSIONS[userRole as UserRole]?.includes('leads:write')) throw new ForbiddenError();
 
     const body = z.object({
       outcome: ActivityOutcome.optional(),
@@ -275,7 +276,7 @@ export async function activitiesRouter(fastify: FastifyInstance) {
   // ── Update ────────────────────────────────────────────────────────────────
   fastify.patch<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const { userRole, userId, db } = request as any;
-    if (!ROLE_PERMISSIONS[userRole]?.leads?.write) throw new ForbiddenError();
+    if (!ROLE_PERMISSIONS[userRole as UserRole]?.includes('leads:write')) throw new ForbiddenError();
 
     const body = ActivityUpdateSchema.parse(request.body);
 
@@ -324,7 +325,7 @@ export async function activitiesRouter(fastify: FastifyInstance) {
   // ── Delete ────────────────────────────────────────────────────────────────
   fastify.delete<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const { userRole, db } = request as any;
-    if (!ROLE_PERMISSIONS[userRole]?.leads?.write) throw new ForbiddenError();
+    if (!ROLE_PERMISSIONS[userRole as UserRole]?.includes('leads:write')) throw new ForbiddenError();
 
     const result = await db.query('DELETE FROM activities WHERE id = $1 RETURNING id', [request.params.id]);
     if (!result.rows[0]) throw new NotFoundError('Activity', request.params.id);

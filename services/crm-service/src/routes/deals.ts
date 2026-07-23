@@ -8,6 +8,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { NotFoundError, ForbiddenError } from '../middleware/error-handler';
 import { ROLE_PERMISSIONS } from '../middleware/auth';
+import type { UserRole } from '../../../../shared/src/types/index.js';
 import { publishEvent } from '@vertex/shared/utils/pubsub';
 import { TOPICS } from '@vertex/shared/utils/pubsub';
 
@@ -300,7 +301,7 @@ export async function dealsRouter(fastify: FastifyInstance) {
   // ── Create Deal ───────────────────────────────────────────────────────────
   fastify.post('/', async (request, reply) => {
     const { userRole, userId, tenantId, db } = request as any;
-    if (!ROLE_PERMISSIONS[userRole]?.leads?.write) throw new ForbiddenError();
+    if (!ROLE_PERMISSIONS[userRole as UserRole]?.includes('deals:write')) throw new ForbiddenError();
 
     const body = DealCreateSchema.parse(request.body);
 
@@ -364,7 +365,7 @@ export async function dealsRouter(fastify: FastifyInstance) {
   // ── Update Deal ───────────────────────────────────────────────────────────
   fastify.patch<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const { userRole, userId, db } = request as any;
-    if (!ROLE_PERMISSIONS[userRole]?.leads?.write) throw new ForbiddenError();
+    if (!ROLE_PERMISSIONS[userRole as UserRole]?.includes('deals:write')) throw new ForbiddenError();
 
     const body = DealUpdateSchema.parse(request.body);
 
@@ -415,7 +416,7 @@ export async function dealsRouter(fastify: FastifyInstance) {
   // ── Stage Transition ──────────────────────────────────────────────────────
   fastify.post<{ Params: { id: string } }>('/:id/stage', async (request, reply) => {
     const { userRole, userId, tenantId, db } = request as any;
-    if (!ROLE_PERMISSIONS[userRole]?.leads?.write) throw new ForbiddenError();
+    if (!ROLE_PERMISSIONS[userRole as UserRole]?.includes('deals:write')) throw new ForbiddenError();
 
     const body = DealStageChangeSchema.parse(request.body);
 
@@ -470,7 +471,7 @@ export async function dealsRouter(fastify: FastifyInstance) {
   // ── Delete Deal ───────────────────────────────────────────────────────────
   fastify.delete<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const { userRole, db } = request as any;
-    if (!ROLE_PERMISSIONS[userRole]?.settings?.write) {
+    if (!ROLE_PERMISSIONS[userRole as UserRole]?.includes('deals:delete')) {
       throw new ForbiddenError('Only admins can delete deals');
     }
 

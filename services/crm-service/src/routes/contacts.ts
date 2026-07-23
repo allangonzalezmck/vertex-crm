@@ -8,6 +8,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { NotFoundError, ForbiddenError, ConflictError } from '../middleware/error-handler';
 import { ROLE_PERMISSIONS } from '../middleware/auth';
+import type { UserRole } from '../../../../shared/src/types/index.js';
 
 // ─── Schemas ─────────────────────────────────────────────────────────────────
 
@@ -158,7 +159,7 @@ export async function contactsRouter(fastify: FastifyInstance) {
   // ── Create ────────────────────────────────────────────────────────────────
   fastify.post('/', async (request, reply) => {
     const { userRole, userId, db } = request as any;
-    if (!ROLE_PERMISSIONS[userRole]?.leads?.write) {
+    if (!ROLE_PERMISSIONS[userRole as UserRole]?.includes('contacts:write')) {
       throw new ForbiddenError();
     }
 
@@ -209,7 +210,7 @@ export async function contactsRouter(fastify: FastifyInstance) {
   // ── Update ────────────────────────────────────────────────────────────────
   fastify.patch<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const { userRole, userId, db } = request as any;
-    if (!ROLE_PERMISSIONS[userRole]?.leads?.write) {
+    if (!ROLE_PERMISSIONS[userRole as UserRole]?.includes('contacts:write')) {
       throw new ForbiddenError();
     }
 
@@ -279,7 +280,7 @@ export async function contactsRouter(fastify: FastifyInstance) {
   // ── Delete ────────────────────────────────────────────────────────────────
   fastify.delete<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const { userRole, db } = request as any;
-    if (!ROLE_PERMISSIONS[userRole]?.settings?.write) {
+    if (!ROLE_PERMISSIONS[userRole as UserRole]?.includes('contacts:delete')) {
       throw new ForbiddenError('Only admins can delete contacts');
     }
 
