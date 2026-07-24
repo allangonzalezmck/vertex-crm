@@ -60,9 +60,10 @@ async function authMiddlewareFn(app: FastifyInstance): Promise<void> {
     const authHeader = request.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
       return reply.status(401).send({
-        data: null,
-        error: { code: 'UNAUTHORIZED', message: 'Missing or invalid authorization header', requestId: request.id },
-        meta: { requestId: request.id, timestamp: new Date().toISOString() },
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'Missing or invalid authorization header' },
+        timestamp: new Date().toISOString(),
+        requestId: request.id,
       });
     }
 
@@ -84,9 +85,10 @@ async function authMiddlewareFn(app: FastifyInstance): Promise<void> {
 
       if (!tenantId || !userId) {
         return reply.status(401).send({
-          data: null,
-          error: { code: 'INVALID_TOKEN', message: 'Token missing required claims', requestId: request.id },
-          meta: { requestId: request.id, timestamp: new Date().toISOString() },
+          success: false,
+          error: { code: 'INVALID_TOKEN', message: 'Token missing required claims' },
+          timestamp: new Date().toISOString(),
+          requestId: request.id,
         });
       }
 
@@ -103,13 +105,13 @@ async function authMiddlewareFn(app: FastifyInstance): Promise<void> {
       // Distinguish token expiry from invalid signature
       const isExpired = err instanceof jose.errors.JWTExpired;
       return reply.status(401).send({
-        data: null,
+        success: false,
         error: {
           code: isExpired ? 'TOKEN_EXPIRED' : 'INVALID_TOKEN',
           message: isExpired ? 'Token has expired' : 'Invalid token',
-          requestId: request.id,
         },
-        meta: { requestId: request.id, timestamp: new Date().toISOString() },
+        timestamp: new Date().toISOString(),
+        requestId: request.id,
       });
     }
   });
@@ -127,13 +129,13 @@ export function requirePermission(permission: Permission) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
     if (!request.tenantContext.permissions.includes(permission)) {
       return reply.status(403).send({
-        data: null,
+        success: false,
         error: {
           code: 'FORBIDDEN',
           message: `You don't have permission to perform this action`,
-          requestId: request.id,
         },
-        meta: { requestId: request.id, timestamp: new Date().toISOString() },
+        timestamp: new Date().toISOString(),
+        requestId: request.id,
       });
     }
   };

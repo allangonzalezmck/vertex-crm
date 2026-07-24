@@ -87,14 +87,14 @@ export async function buildApp(): Promise<FastifyInstance> {
       return (request.headers['x-tenant-id'] as string) ?? request.ip;
     },
     redis,
-    errorResponseBuilder: () => ({
-      data: null,
+    errorResponseBuilder: (request) => ({
+      success: false,
       error: {
         code: 'RATE_LIMIT_EXCEEDED',
         message: 'Too many requests. Please slow down.',
-        requestId: randomUUID(),
       },
-      meta: { requestId: randomUUID(), timestamp: new Date().toISOString() },
+      timestamp: new Date().toISOString(),
+      requestId: request.id,
     }),
   });
 

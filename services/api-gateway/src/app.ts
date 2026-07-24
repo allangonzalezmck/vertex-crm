@@ -77,6 +77,15 @@ const PUBLIC_ROUTES = new Set([
 ]);
 
 // ── Fastify ──────────────────────────────────────────────────────────────────
+function errorEnvelope(code: string, message: string, requestId?: string) {
+  return {
+    success: false as const,
+    error: { code, message },
+    timestamp: new Date().toISOString(),
+    requestId,
+  };
+}
+
 const app = Fastify({ logger: false, trustProxy: true });
 
 app.get('/health', async () => ({ status: 'ok', service: 'api-gateway' }));
@@ -101,7 +110,7 @@ app.addHook('preHandler', async (req: FastifyRequest, reply: FastifyReply) => {
 
   const auth = req.headers.authorization;
   if (!auth?.startsWith('Bearer ')) {
-    return reply.status(401).send({ error: 'Missing authorization header' });
+    return reply.status(401).send(errorEnvelope('UNAUTHORIZED', 'Missing authorization header', traceId));
   }
 
   let payload: JWTPayload & { tenant_id?: string; email?: string };
@@ -113,12 +122,12 @@ app.addHook('preHandler', async (req: FastifyRequest, reply: FastifyReply) => {
     payload = p as typeof payload;
   } catch (err) {
     logger.warn('JWT verification failed', { traceId });
-    return reply.status(401).send({ error: 'Invalid or expired token' });
+    return reply.status(401).send(errorEnvelope('INVALID_TOKEN', 'Invalid or expired token', traceId));
   }
 
   const tenantId = payload.tenant_id ?? (payload as any)['https://vertex-crm.io/tenant_id'];
   if (!tenantId) {
-    return reply.status(403).send({ error: 'Token missing tenant_id claim' });
+    return reply.status(403).send(errorEnvelope('MISSING_TENANT', 'Token missing tenant_id claim', traceId));
   }
 
   // Propagate identity headers to upstreams
@@ -140,7 +149,7 @@ app.addHook('preHandler', async (req: FastifyRequest, reply: FastifyReply) => {
   if (!allowed) {
     logger.warn('Rate limit exceeded', { tenantId, traceId });
     return reply.status(429).send({
-      error: 'Too many requests',
+      ...errorEnvelope('RATE_LIMITED', 'Too many requests', traceId),
       retryAfter: Math.ceil((resetAt - Date.now()) / 1000),
     });
   }

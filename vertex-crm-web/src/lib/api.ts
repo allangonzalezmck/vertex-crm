@@ -1,10 +1,16 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 
+/** Standard error envelope returned by all Vertex services. */
+export interface ApiErrorEnvelope {
+  success: false;
+  error: { code: string; message: string; details?: unknown };
+  timestamp: string;
+  requestId?: string;
+}
+
 const api: AxiosInstance = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080',
+  headers: { 'Content-Type': 'application/json' },
 });
 
 // Request interceptor - add auth token
@@ -24,35 +30,63 @@ api.interceptors.request.use(
 // Response interceptor - handle auth errors
 api.interceptors.response.use(
   (response) => response,
-  (error: AxiosError) => {
-    if (error.response?.status === 401) {
+  (error: AxiosError<ApiErrorEnvelope>) => {
+    if (error.response?.status === 401 && typeof window !== 'undefined') {
       localStorage.removeItem('auth_token');
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login';
-      }
+      window.location.href = '/login';
     }
     return Promise.reject(error);
   }
 );
 
+/**
+ * Extract a human-readable message from an axios error.
+ * Handles the standard envelope, plus network failures where there is
+ * no response at all.
+ */
+export function getErrorMessage(error: unknown): string {
+  const err = error as AxiosError<ApiErrorEnvelope>;
+
+  if (err?.response?.data?.error?.message) {
+    return err.response.data.error.message;
+  }
+  if (err?.response) {
+    return `Request failed (${err.response.status})`;
+  }
+  if (err?.request) {
+    return 'Could not reach the server. Check your connection.';
+  }
+  return (err as Error)?.message ?? 'An unexpected error occurred';
+}
+
+/** Extract the machine-readable error code, when present. */
+export function getErrorCode(error: unknown): string | null {
+  const err = error as AxiosError<ApiErrorEnvelope>;
+  return err?.response?.data?.error?.code ?? null;
+}
+
 export default api;
 
+/**
+ * Paths as exposed by api-gateway. The gateway rewrites /api/X -> /api/v1/X
+ * for CRM routes, so callers use the un-versioned form.
+ */
 export const apiEndpoints = {
   auth: {
     login: '/api/auth/login',
     logout: '/api/auth/logout',
   },
   crm: {
-    leads: '/api/v1/leads',
-    contacts: '/api/v1/contacts',
-    deals: '/api/v1/deals',
-    accounts: '/api/v1/accounts',
-    activities: '/api/v1/activities',
-    pipelines: '/api/v1/pipelines',
+    leads: '/api/leads',
+    contacts: '/api/contacts',
+    deals: '/api/deals',
+    accounts: '/api/accounts',
+    activities: '/api/activities',
+    pipelines: '/api/pipelines',
   },
   marketing: {
-    campaigns: '/api/v1/marketing/campaigns',
-    ads: '/api/v1/marketing/ads',
-    analytics: '/api/v1/marketing/analytics',
+    campaigns: '/api/marketing/campaigns',
+    ads: '/api/marketing/ads',
+    analytics: '/api/marketing/analytics',
   },
 };
