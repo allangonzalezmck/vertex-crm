@@ -12,6 +12,10 @@
   "include": [
     "src"
   ],
+  "exclude": [
+    "src/routes/conversations-export.ts",
+    "src/routes/conversations-import.ts"
+  ],
   "references": [
     {
       "path": "../../shared"

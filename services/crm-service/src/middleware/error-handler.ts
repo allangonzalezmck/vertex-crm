@@ -7,7 +7,7 @@
 
 import type { FastifyError, FastifyRequest, FastifyReply } from 'fastify';
 import { ZodError } from 'zod';
-import { logger } from '@vertex/shared/utils/logger';
+import type { Logger } from '@vertex/shared/utils/logger';
 
 // ─── Domain Error Classes ────────────────────────────────────────────────────
 
@@ -147,48 +147,43 @@ function classifyError(err: unknown): {
 
 // ─── Handler ─────────────────────────────────────────────────────────────────
 
-export function errorHandler(
-  err: FastifyError,
-  request: FastifyRequest,
-  reply: FastifyReply
-): void {
-  const classified = classifyError(err);
 
-  // Log 5xx as error, 4xx as warn
-  if (classified.statusCode >= 500) {
-    logger.error(
-      {
-        err,
+export function errorHandler(logger: Logger) {
+  return function handler(
+    err: FastifyError,
+    request: FastifyRequest,
+    reply: FastifyReply
+  ): void {
+    const classified = classifyError(err);
+
+    if (classified.statusCode >= 500) {
+      logger.error('Unhandled server error', err, {
         requestId: request.id,
         method: request.method,
         url: request.url,
         tenantId: (request as any).tenantId,
         userId: (request as any).userId,
-      },
-      'Unhandled server error'
-    );
-  } else if (classified.statusCode >= 400) {
-    logger.warn(
-      {
+      });
+    } else if (classified.statusCode >= 400) {
+      logger.warn('Client error', {
         code: classified.code,
         message: classified.message,
         requestId: request.id,
         method: request.method,
         url: request.url,
         tenantId: (request as any).tenantId,
-      },
-      'Client error'
-    );
-  }
+      });
+    }
 
-  reply.code(classified.statusCode).send({
-    success: false,
-    error: {
-      code: classified.code,
-      message: classified.message,
-      ...(classified.details && { details: classified.details }),
-    },
-    timestamp: new Date().toISOString(),
-    requestId: request.id,
-  });
+    reply.code(classified.statusCode).send({
+      success: false,
+      error: {
+        code: classified.code,
+        message: classified.message,
+        ...(classified.details ? { details: classified.details } : {}),
+      },
+      timestamp: new Date().toISOString(),
+      requestId: request.id,
+    });
+  };
 }
