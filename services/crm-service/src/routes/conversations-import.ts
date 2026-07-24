@@ -28,7 +28,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { randomUUID } from 'crypto';
 import { Storage } from '@google-cloud/storage';
 import { z } from 'zod';
-import { createLogger } from '../../../../shared/src/utils/logger.js';
+import { createLogger } from '@vertex/shared/utils/logger';
 import { parseWhatsAppExport } from '../services/whatsapp-import.parser.js';
 
 const logger = createLogger('conversations-import');

@@ -22,7 +22,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { Storage } from '@google-cloud/storage';
 import { z } from 'zod';
-import { createLogger } from '../../../../shared/src/utils/logger.js';
+import { createLogger } from '@vertex/shared/utils/logger';
 
 const logger = createLogger('conversations-export');
 const storage = new Storage();

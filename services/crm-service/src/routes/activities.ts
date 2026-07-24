@@ -8,7 +8,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { NotFoundError, ForbiddenError } from '../middleware/error-handler';
 import { ROLE_PERMISSIONS } from '../middleware/auth';
-import type { UserRole } from '../../../../shared/src/types/index.js';
+import type { UserRole } from '@vertex/shared/types';
 
 // ─── Schemas ─────────────────────────────────────────────────────────────────
 

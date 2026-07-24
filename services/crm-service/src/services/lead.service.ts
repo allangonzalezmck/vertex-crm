@@ -9,10 +9,10 @@ import { randomUUID } from 'crypto';
 import {
   getTenantClient,
   withTransaction,
-} from '../../../../shared/src/utils/database.js';
+} from '@vertex/shared/utils/database';
 type TenantClient = Awaited<ReturnType<typeof getTenantClient>>;
 
-import { publishEvent, TOPICS } from '../../../../shared/src/utils/pubsub.js';
+import { publishEvent, TOPICS } from '@vertex/shared/utils/pubsub';
 import {
   type TenantId,
   type UserId,
@@ -20,12 +20,12 @@ import {
   type LeadCreatedEvent,
   asTenantId,
   asLeadId,
-} from '../../../../shared/src/types/index.js';
+} from '@vertex/shared/types';
 import type {
   CreateLeadInput,
   UpdateLeadInput,
-} from '../../../../shared/src/schemas/index.js';
-import { createLogger } from '../../../../shared/src/utils/logger.js';
+} from '@vertex/shared/schemas';
+import { createLogger } from '@vertex/shared/utils/logger';
 
 const logger = createLogger('crm-service:lead-service');
 

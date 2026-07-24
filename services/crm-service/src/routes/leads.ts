@@ -12,9 +12,9 @@ import {
   PaginationSchema,
   successResponse,
   errorResponse,
-} from '../../../../shared/src/schemas/index.js';
+} from '@vertex/shared/schemas';
 import { LeadService } from '../services/lead.service.js';
-import type { TenantContext } from '../../../../shared/src/types/index.js';
+import type { TenantContext } from '@vertex/shared/types';
 import { z } from 'zod';
 
 declare module 'fastify' {

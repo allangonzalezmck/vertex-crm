@@ -13,8 +13,8 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
 import * as jose from 'jose';
-import type { TenantContext } from '../../../../shared/src/types/index.js';
-import { asTenantId, asUserId, type UserRole, type Permission } from '../../../../shared/src/types/index.js';
+import type { TenantContext } from '@vertex/shared/types';
+import { asTenantId, asUserId, type UserRole, type Permission } from '@vertex/shared/types';
 
 // Public key cache — refreshes every hour
 let jwksCache: ReturnType<typeof jose.createRemoteJWKSet> | null = null;

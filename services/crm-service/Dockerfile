@@ -31,4 +31,4 @@ COPY --from=builder /app/services/crm-service/dist ./services/crm-service/dist/
 
 USER nexus
 EXPOSE 8080
-CMD ["node", "services/crm-service/dist/app.js"]
+CMD ["node", "services/crm-service/dist/server.js"]

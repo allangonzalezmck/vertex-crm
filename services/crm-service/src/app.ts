@@ -14,8 +14,8 @@ import { fastifyRateLimit } from '@fastify/rate-limit';
 import { randomUUID } from 'crypto';
 import Redis from 'ioredis';
 
-import { createPool, buildDatabaseConfig, checkDatabaseHealth } from '../../../shared/src/utils/database.js';
-import { createLogger } from '../../../shared/src/utils/logger.js';
+import { createPool, buildDatabaseConfig, checkDatabaseHealth } from '@vertex/shared/utils/database';
+import { createLogger } from '@vertex/shared/utils/logger';
 import { leadsRouter } from './routes/leads.js';
 import { contactsRouter } from './routes/contacts.js';
 import { dealsRouter } from './routes/deals.js';

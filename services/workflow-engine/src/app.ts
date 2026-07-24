@@ -9,7 +9,7 @@ import Fastify from 'fastify';
 import helmet from '@fastify/helmet';
 import cors from '@fastify/cors';
 import { createLogger } from '@vertex/shared/utils/logger';
-import { getTenantClient, withTransaction } from '@vertex/shared/utils/database';
+import { getTenantClient, withTransaction, checkDatabaseHealth, createPool, buildDatabaseConfig } from '@vertex/shared/utils/database';
 import { publishEvent, TOPICS } from '@vertex/shared/utils/pubsub';
 import type { TenantId } from '@vertex/shared/types';
 
@@ -277,14 +277,11 @@ app.register(cors, { origin: false });
 // Health
 app.get('/health', async () => ({ status: 'ok', service: 'workflow-engine' }));
 app.get('/ready', async (_, reply) => {
-  try {
-    const db = await getTenantClient('health-check' as TenantId);
-    await db.query('SELECT 1');
-    await (db as any).release?.();
-    return { status: 'ready' };
-  } catch {
-    return reply.code(503).send({ status: 'unhealthy' });
+  const healthy = await checkDatabaseHealth();
+  if (!healthy) {
+    return reply.code(503).send({ status: 'unhealthy', checks: { database: false } });
   }
+  return { status: 'ready', checks: { database: true } };
 });
 
 // Pub/Sub push endpoint — receives events from CRM and AI agent topics
@@ -344,6 +341,7 @@ process.on('SIGINT', shutdown);
 const start = async () => {
   try {
     const port = parseInt(process.env.PORT ?? '8080', 10);
+    createPool(buildDatabaseConfig());
     await app.listen({ port, host: '0.0.0.0' });
     logger.info('Workflow engine started', { port });
   } catch (err) {
