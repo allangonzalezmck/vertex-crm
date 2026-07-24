@@ -8,13 +8,12 @@
 import Fastify from 'fastify';
 import helmet from '@fastify/helmet';
 import { createLogger } from '@vertex/shared/utils/logger';
-import { getTenantClient } from '@vertex/shared/utils/database';
+import { getTenantClient, createPool, buildDatabaseConfig } from '@vertex/shared/utils/database';
 import type { TenantId } from '@vertex/shared/types';
 
 
 const logger = createLogger('notification-service');
 
-const logger = createLogger('notification-service');
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type NotificationChannel = 'email' | 'sms' | 'push' | 'in_app';
@@ -366,6 +365,7 @@ process.on('SIGINT', shutdown);
 const start = async () => {
   try {
     const port = parseInt(process.env.PORT ?? '8080', 10);
+    createPool(buildDatabaseConfig());
     await app.listen({ port, host: '0.0.0.0' });
     logger.info('Notification service started', { port });
   } catch (err) {
