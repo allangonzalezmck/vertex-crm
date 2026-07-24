@@ -110,21 +110,20 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.addHook('onRequest', async (request) => {
     const traceHeader = request.headers['x-cloud-trace-context'] as string | undefined;
     const traceId = traceHeader?.split('/')[0];
-
-    (request as typeof request & { log: typeof logger }).log = logger.child({
+    request.vlog = logger.child({
       requestId: request.id,
-      method: request.method,
-      url: request.url,
       traceId,
     });
   });
 
   // Log all requests
   app.addHook('onResponse', async (request, reply) => {
-    const reqLog = (request as typeof request & { log: typeof logger }).log;
+    const reqLog = request.vlog;
     reqLog.info('Request completed', {
       statusCode: reply.statusCode,
       duration: reply.elapsedTime,
+      method: request.method,
+      url: request.url,
     });
   });
 

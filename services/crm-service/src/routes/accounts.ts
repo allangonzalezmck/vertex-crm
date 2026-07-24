@@ -242,7 +242,7 @@ export async function accountRoutes(fastify: FastifyInstance) {
 
     return reply.send({
       success: true,
-      data: result.rows.map(r => ({
+      data: result.rows.map((r: Record<string, unknown>) => ({
         ...r,
         fullName: `${r.first_name} ${r.last_name}`,
       })),

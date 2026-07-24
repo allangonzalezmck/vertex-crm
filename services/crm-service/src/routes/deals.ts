@@ -198,7 +198,7 @@ export async function dealsRouter(fastify: FastifyInstance) {
       success: true,
       data: {
         pipeline: pipeline.rows[0],
-        stages: stagesResult.rows.map(s => ({
+        stages: stagesResult.rows.map((s: Record<string, unknown>) => ({
           id: s.id,
           name: s.name,
           stageType: s.stage_type,
@@ -242,7 +242,7 @@ export async function dealsRouter(fastify: FastifyInstance) {
     );
 
     const summary = result.rows.reduce(
-      (acc, row) => {
+      (acc: { totalPipeline: number; weightedForecast: number; closedWon: number; totalDeals: number }, row: Record<string, unknown>) => {
         acc.totalPipeline += Number(row.total_value ?? 0);
         acc.weightedForecast += Number(row.weighted_value ?? 0);
         acc.closedWon += Number(row.closed_won_value ?? 0);
@@ -346,12 +346,10 @@ export async function dealsRouter(fastify: FastifyInstance) {
     }
 
     // Publish event
-    await publishEvent(TOPICS.CRM_EVENTS, {
-      type: 'deal.created',
-      tenantId,
-      payload: { dealId: deal.id, value: deal.value, stageId: deal.stage_id },
-      timestamp: new Date().toISOString(),
-      traceId: request.id,
+    await publishEvent(TOPICS.CRM_EVENTS, 'deal.created', tenantId, {
+      dealId: deal.id,
+      value: deal.value,
+      stageId: deal.stage_id,
     });
 
     return reply.code(201).send({
@@ -445,19 +443,13 @@ export async function dealsRouter(fastify: FastifyInstance) {
       [body.stageId, newProbability, userId, stage.rows[0].stage_type, request.params.id]
     );
 
-    await publishEvent(TOPICS.CRM_EVENTS, {
-      type: 'deal.stage_changed',
-      tenantId,
-      payload: {
-        dealId: request.params.id,
-        fromStageId: oldStageId,
-        toStageId: body.stageId,
-        stageType: stage.rows[0].stage_type,
-        dealValue: deal.rows[0].value,
-        reason: body.reason,
-      },
-      timestamp: new Date().toISOString(),
-      traceId: request.id,
+    await publishEvent(TOPICS.CRM_EVENTS, 'deal.stage_changed', tenantId, {
+      dealId: request.params.id,
+      fromStageId: oldStageId,
+      toStageId: body.stageId,
+      stageType: stage.rows[0].stage_type,
+      dealValue: deal.rows[0].value,
+      reason: body.reason,
     });
 
     return reply.send({

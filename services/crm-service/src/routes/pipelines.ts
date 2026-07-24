@@ -70,7 +70,7 @@ export async function pipelinesRouter(fastify: FastifyInstance) {
       success: true,
       data: {
         ...pipelineResult.rows[0],
-        stages: stagesResult.rows.map(s => ({
+        stages: stagesResult.rows.map((s: Record<string, unknown>) => ({
           ...s,
           dealCount: Number(s.deal_count),
         })),

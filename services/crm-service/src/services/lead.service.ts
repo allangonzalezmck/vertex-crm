@@ -9,8 +9,9 @@ import { randomUUID } from 'crypto';
 import {
   getTenantClient,
   withTransaction,
-  type TenantClient,
 } from '../../../../shared/src/utils/database.js';
+type TenantClient = Awaited<ReturnType<typeof getTenantClient>>;
+
 import { publishEvent, TOPICS } from '../../../../shared/src/utils/pubsub.js';
 import {
   type TenantId,
